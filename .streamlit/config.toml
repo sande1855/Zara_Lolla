@@ -1,6 +1,6 @@
 [theme]
-primaryColor = "#FE01B1"          # Neon Fuchsia (Zara's signature)
-backgroundColor = "#0F0F0F"       # Deep Onyx/Midnight base
-secondaryBackgroundColor = "#1E1E1E" # Darker gray for sidebar/cards
-textColor = "#FFFFFF"             # Crisp white for readability
+primaryColor = "#FF00FF"          # Lisa Frank Magenta
+backgroundColor = "#FFFFFF"       # Clean white base to make neons pop
+secondaryBackgroundColor = "#6EF7F7" # Electric Cyan for sidebar
+textColor = "#ac3cfe"             # Deep Purple for text
 font = "sans serif"
