@@ -30,90 +30,102 @@ st.markdown("""
         border-radius: 50px;
         border: 4px solid #00FFFF;
         font-weight: bold;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px #FF00FF;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar: Optional Filters
-st.sidebar.title("🌈 Style Wizard")
+# 3. Sidebar: Filters
+st.sidebar.title("🌈 Midnight Sun Wizard")
 
-# Multi-select to allow varied product types
-product_types = st.sidebar.multiselect(
-    "Include Categories", 
-    ["Ruffle Skirt", "Mesh Dress", "Butterfly Top", "Airbrush Tee", "Sequin Set"],
-    default=["Ruffle Skirt", "Mesh Dress"]
+# Diversity of product types
+product_categories = st.sidebar.multiselect(
+    "Choose Your Vibe", 
+    ["Asymmetrical Ruffle Skirt", "Hibiscus Mesh Dress", "Butterfly Crop Top", "Airbrush Baby Tee", "Sequin Festival Set"],
+    default=["Asymmetrical Ruffle Skirt", "Hibiscus Mesh Dress"]
 )
 
-use_retailers = st.sidebar.checkbox("Filter by Retailer?", value=False)
-retailer_list = []
+# Optional Retailer Filter
+use_retailers = st.sidebar.checkbox("Limit to Specific Stores?", value=False)
+selected_brands = []
 if use_retailers:
-    retailer_list = st.sidebar.multiselect("Stores", ["Revolve", "ASOS", "Urban Outfitters", "Nordstrom"])
+    selected_brands = st.sidebar.multiselect(
+        "Trusted Retailers", 
+        ["Revolve", "ASOS", "Urban Outfitters", "Nordstrom", "Free People"],
+        default=["Revolve", "ASOS"]
+    )
 
-max_price = st.sidebar.slider("Max Price ($)", 20, 500, 150)
+max_price = st.sidebar.slider("Max Price ($)", 30, 1000, 200)
 
-# 4. Search Logic (The "Anti-Empty" Fix)
-def fetch_style_results():
-    # Use aesthetic keywords instead of just the artist's name
-    aesthetic = "Cyber Y2K Scandinavian Barbie"
-    category_query = " OR ".join(product_types) if product_types else "festival outfit"
+# 4. Search Logic with Marketplace Exclusion
+def fetch_midnight_sun_results():
+    # Primary aesthetic keywords
+    aesthetic = "Cyber Y2K Scandinavian Barbie European Hawaii"
     
-    query = f"{category_query} {aesthetic} tropical neon"
+    # Category building
+    cat_query = " OR ".join(product_categories) if product_categories else "festival tour outfit"
     
-    if use_retailers and retailer_list:
-        brand_sites = " OR ".join([f"site:{r.lower().replace(' ', '')}.com" for r in retailer_list])
-        query += f" ({brand_sites})"
+    # EXCLUSION LOGIC: Remove eBay, Depop, Poshmark, and Etsy
+    exclusions = "-site:ebay.com -site:depop.com -site:poshmark.com -site:etsy.com"
+    
+    # Brand logic
+    brand_query = ""
+    if use_retailers and selected_brands:
+        brand_sites = " OR ".join([f"site:{b.lower().replace(' ', '')}.com" for b in selected_brands])
+        brand_query = f"({brand_sites})"
+    
+    full_query = f"{cat_query} {aesthetic} {brand_query} {exclusions}"
     
     params = {
         "engine": "google_shopping",
-        "q": query,
+        "q": full_query,
         "location": "United States",
         "api_key": st.secrets["SERP_API_KEY"]
     }
     
     try:
         search = GoogleSearch(params)
-        results = search.get_dict().get("shopping_results", [])
-        return results
+        return search.get_dict().get("shopping_results", [])
     except Exception as e:
         st.error(f"Search failed: {e}")
         return []
 
-# 5. Main Display
-st.title("☀️ Midnight Sun Style")
+# 5. Main Content
+st.title("☀️ Midnight Sun Style Finder")
 
 if st.sidebar.button("GLITTER SEARCH"):
-    items = fetch_style_results()
+    results = fetch_midnight_sun_results()
     
-    if items:
-        # Filter by price manually to ensure the slider always works
-        filtered = []
-        for item in items:
-            p_str = item.get('price', '$1000').replace('$', '').replace(',', '')
+    if results:
+        # Final filter for price and stock verification (simplified)
+        valid_items = []
+        for item in results:
+            price_str = item.get('price', '$0').replace('$', '').replace(',', '')
             try:
-                if float(p_str) <= max_price:
-                    filtered.append(item)
+                if float(price_str) <= max_price:
+                    valid_items.append(item)
             except:
                 continue
         
-        if not filtered:
-            st.warning("Found items, but they exceed your budget! Try raising the slider.")
+        if not valid_items:
+            st.warning("No matches found in this price range. Try broadening your budget!")
         else:
             cols = st.columns(3)
-            for idx, item in enumerate(filtered[:15]):
-                with cols[idx % 3]:
+            for i, item in enumerate(valid_items[:12]):
+                with cols[i % 3]:
                     st.image(item.get('thumbnail'), use_container_width=True)
-                    st.write(f"**{item.get('title')[:45]}...**")
-                    st.write(f"{item.get('price')} @ {item.get('source')}")
+                    st.subheader(item.get('title')[:50] + "...")
+                    st.write(f"**{item.get('price')}** at **{item.get('source')}**")
                     
-                    # Size details if the API provides them
+                    # Size availability often found in 'extensions'
                     if 'extensions' in item:
-                        st.caption(f"Sizes/Info: {', '.join(item['extensions'])}")
+                        st.caption(f"Details: {', '.join(item['extensions'])}")
                     
-                    # Fix for the Link Error: Ensure link exists
-                    shop_url = item.get('link')
-                    if shop_url:
-                        st.link_button("View on Site", shop_url)
-                    else:
-                        st.write("*(Direct link unavailable)*")
+                    # Direct link to site
+                    st.link_button("Shop Now", item.get('link'))
     else:
-        st.error("Still no results! Try unchecking 'Filter by Retailer' for a broader search.")
+        st.error("No results found. Try removing specific retailer filters!")
