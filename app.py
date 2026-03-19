@@ -8,7 +8,7 @@ st.set_page_config(page_title="Lisa Frank x Zara Larsson", layout="wide")
 if 'favorites' not in st.session_state:
     st.session_state.favorites = []
 
-# 2. Lisa Frank Aesthetic Styling (Updated for better visibility)
+# 2. Lisa Frank Aesthetic Styling
 st.markdown("""
     <style>
     .main .block-container h1 {
@@ -30,7 +30,6 @@ st.markdown("""
         border-radius: 50px;
         border: 4px solid #00FFFF;
         font-weight: bold;
-        width: 100%;
     }
     img {
         border: 4px solid #FFD700;
@@ -42,47 +41,45 @@ st.markdown("""
 # 3. Sidebar: Smart Filters
 st.sidebar.title("🌈 Style Wizard")
 
-# Base Category (Always used)
 category = st.sidebar.selectbox("Core Item", [
     "Ruffle Skirt", "Butterfly Top", "Mesh Dress", "Baby Tee", "Sequin Set"
 ])
 
-# Optional Boosts (These only add to the search if selected)
-use_color = st.sidebar.checkbox("Filter by Color?", value=False)
-color_theme = st.sidebar.selectbox("Color Palette", ["Neon Pink", "Electric Blue", "Sunset Orange", "Silver"], disabled=not use_color)
+# Toggle for filtering
+use_filters = st.sidebar.checkbox("Apply Strict Filters?", value=False)
 
-use_brands = st.sidebar.checkbox("Filter by Brand?", value=False)
-brand_list = st.sidebar.multiselect("Retailers", ["Revolve", "ASOS", "Urban Outfitters", "Nordstrom"], default=["Revolve"], disabled=not use_brands)
+if use_filters:
+    color_theme = st.sidebar.selectbox("Color Palette", ["Neon Pink", "Electric Blue", "Sunset Orange", "Silver"])
+    brand_list = st.sidebar.multiselect("Retailers", ["Revolve", "ASOS", "Urban Outfitters", "Nordstrom"])
+else:
+    color_theme = ""
+    brand_list = []
 
-max_price = st.sidebar.slider("Max Price ($)", 10, 500, 200)
+max_price = st.sidebar.slider("Max Price ($)", 10, 500, 250)
 
-# 4. Search Logic (The "Anti-Limiting" Fix)
+# 4. Search Logic
 def fetch_style_results():
-    # Start with a strong base aesthetic query
-    query_parts = [category, "Zara Larsson tour style", "Y2K festival"]
+    # Base query for the Zara Larsson "Midnight Sun" vibe
+    query = f"Zara Larsson tour style {category} {color_theme} Y2K festival"
     
-    # Add optional filters only if checked
-    if use_color:
-        query_parts.append(color_theme)
-    
-    if use_brands and brand_list:
+    # Add brands only if selected
+    if brand_list:
         brand_sites = " OR ".join([f"site:{b.lower().replace(' ', '')}.com" for b in brand_list])
-        query_parts.append(f"({brand_sites})")
-    
-    full_query = " ".join(query_parts)
+        query += f" ({brand_sites})"
     
     params = {
         "engine": "google_shopping",
-        "q": full_query,
+        "q": query,
         "location": "United States",
         "api_key": st.secrets["SERP_API_KEY"]
     }
     
     try:
         search = GoogleSearch(params)
-        return search.get_dict().get("shopping_results", [])
+        results = search.get_dict().get("shopping_results", [])
+        return results
     except Exception as e:
-        st.error(f"Search failed: {e}")
+        st.error(f"API Connection Error: {e}")
         return []
 
 # 5. Main Display
@@ -92,24 +89,38 @@ if st.sidebar.button("GLITTER SEARCH"):
     items = fetch_style_results()
     
     if items:
-        cols = st.columns(3)
-        # Filter results by price manually to ensure the slider always works
-        filtered_items = [i for i in items if float(i.get('price', '$1000').replace('$', '').replace(',', '')) <= max_price]
+        # Filter by price manually (SerpApi price can be a string like "$45.00")
+        filtered_items = []
+        for item in items:
+            raw_price = item.get('price', '0').replace('$', '').replace(',', '')
+            try:
+                if float(raw_price) <= max_price:
+                    filtered_items.append(item)
+            except ValueError:
+                filtered_items.append(item) # Keep it if price is weirdly formatted
         
         if not filtered_items:
-            st.warning("Found items, but they are all above your price limit! Try sliding the budget up.")
-        
-        for i, item in enumerate(filtered_items[:12]):
-            with cols[i % 3]:
-                st.image(item.get('thumbnail'), use_container_width=True)
-                st.write(f"**{item.get('title')[:40]}**")
-                st.write(f"{item.get('price')} at {item.get('source')}")
-                if st.button("💖 Save", key=f"fav_{i}"):
-                    st.session_state.favorites.append(item)
-                    st.toast("Saved to collection!")
-                st.link_button("Shop", item.get('link'))
+            st.warning("No items found under that price. Try increasing your budget!")
+        else:
+            cols = st.columns(3)
+            for i, item in enumerate(filtered_items[:12]):
+                with cols[i % 3]:
+                    st.image(item.get('thumbnail', ''), use_container_width=True)
+                    st.write(f"**{item.get('title', 'Clothing Item')[:40]}**")
+                    st.write(f"{item.get('price', 'Price N/A')} at {item.get('source', 'Store')}")
+                    
+                    # ERROR FIX: Check if link exists before making button
+                    item_link = item.get('link')
+                    if item_link:
+                        st.link_button("Shop Now", item_link)
+                    else:
+                        st.write("*(Link unavailable)*")
+                    
+                    if st.button("💖 Save", key=f"fav_{i}"):
+                        st.session_state.favorites.append(item)
+                        st.toast("Saved!")
     else:
-        st.error("No results found. Try unchecking the Brand or Color filters to broaden the search!")
+        st.error("No results found. Try turning off 'Strict Filters' in the sidebar!")
 
 # 6. Favorites
 if st.session_state.favorites:
@@ -118,4 +129,4 @@ if st.session_state.favorites:
     fav_cols = st.columns(6)
     for idx, fav in enumerate(st.session_state.favorites):
         with fav_cols[idx % 6]:
-            st.image(fav.get('thumbnail'), width=100)
+            st.image(fav.get('thumbnail', ''), width=100)
